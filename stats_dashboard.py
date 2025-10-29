@@ -45,54 +45,44 @@ class StatsDashboard(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Stats Dashboard")
-        self.minsize(900, 520)
-        self.style = ttk.Style(self)
+        self.geometry("980x480")
 
-        # Use system theme
+        SKY_BLUE = "#87CEEB"
+        self.configure(bg=SKY_BLUE)
+
+        self.style = ttk.Style(self)
         try:
             self.style.theme_use("clam")
-        except Exception:
+        except:
             pass
 
-        # Fonts
-        self.title_font = font.Font(family="Segoe UI", size=28, weight="bold")
-        self.value_font = font.Font(family="Segoe UI", size=36, weight="bold")
-        self.label_font = font.Font(family="Segoe UI", size=12)
-        self.small_font = font.Font(family="Segoe UI", size=10)
+        self.style.configure("Green.TButton", background="#28a745", foreground="white", padding=6)
+        self.style.map("Green.TButton", background=[("active", "#1e7e34")])
 
-        # Fullscreen state
-        self.fullscreen = False
-        self.bind("<F11>", self.toggle_fullscreen)
-        self.bind("<Escape>", self.exit_fullscreen)
+        self.title_font = font.Font(family="Segoe UI", size=20, weight="bold")
+        self.value_font = font.Font(family="Segoe UI", size=22, weight="bold")
+        self.label_font = font.Font(family="Segoe UI", size=10)
 
-        # Layout proportions
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=2)
-        self.rowconfigure(0, weight=1)
 
-        # Left input panel
-        self.input_frame = ttk.Frame(self, padding=(18, 18, 12, 18))
+        # --- Blue panels ---
+        self.input_frame = tk.Frame(self, bg=SKY_BLUE, padx=20, pady=20)
         self.input_frame.grid(row=0, column=0, sticky="nsew")
-        self.input_frame.rowconfigure(1, weight=1)
-        self._build_input_panel()
 
-        # Right display panel
-        self.display_frame = ttk.Frame(self, padding=(12, 18, 18, 18))
+        self.display_frame = tk.Frame(self, bg=SKY_BLUE, padx=20, pady=20)
         self.display_frame.grid(row=0, column=1, sticky="nsew")
-        self.display_frame.rowconfigure(1, weight=1)
-        self._build_display_panel()
 
-        # Session
+        self._build_input_panel(SKY_BLUE)
+        self._build_display_panel(SKY_BLUE)
+
         self.session = Session()
-
-        # Load latest automatically
+        self.load_list()
         self.load_latest()
 
-    def _build_input_panel(self):
-        header = ttk.Label(self.input_frame, text="Enter Stats", font=self.title_font)
-        header.pack(anchor="w", pady=(0, 10))
+    def _build_input_panel(self, bg):
+        tk.Label(self.input_frame, text="Enter Stats", font=self.title_font, bg=bg).pack(anchor="w", pady=(0, 15))
 
-        # Input fields
         self.entries = {}
         fields = [
             ("score", "Score", int),
@@ -103,64 +93,49 @@ class StatsDashboard(tk.Tk):
             ("trophies_collected", "Trophies Collected", int),
         ]
 
-        form_frame = ttk.Frame(self.input_frame)
-        form_frame.pack(fill="both", expand=True, pady=(5, 15))
+        form = tk.Frame(self.input_frame, bg=bg)
+        form.pack(fill="x", pady=(5, 15))
 
-        for key, label_text, _type in fields:
-            row = ttk.Frame(form_frame)
-            row.pack(fill="x", pady=6)
-            lbl = ttk.Label(row, text=label_text, width=20, anchor="w", font=self.label_font)
-            lbl.pack(side="left", padx=(0, 5))
-            ent_var = tk.StringVar()
-            ent = ttk.Entry(row, textvariable=ent_var, font=self.label_font)
-            ent.pack(side="left", fill="x", expand=True)
-            self.entries[key] = (ent_var, _type)
+        for key, txt, _type in fields:
+            row = tk.Frame(form, bg=bg)
+            row.pack(fill="x", pady=5)
+            tk.Label(row, text=txt, width=22, anchor="w", font=self.label_font, bg=bg).pack(side="left")
+            var = tk.StringVar()
+            ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+            self.entries[key] = (var, _type)
 
-        # Buttons (Save + Clear only)
-        btn_frame = ttk.Frame(self.input_frame)
-        btn_frame.pack(fill="x", pady=(10, 0))
+        # Buttons
+        btn_frame = tk.Frame(self.input_frame, bg=bg)
+        btn_frame.pack(fill="x", pady=(10, 10))
 
-        for text, cmd in [
-            ("Save", self.save_to_db),
-            ("Clear", self.clear_inputs),
-        ]:
-            btn = tk.Button(
-                btn_frame,
-                text=text,
-                command=cmd,
-                bg="#32CD32",  # Green
-                fg="white",
-                activebackground="#2EB82E",
-                activeforeground="white",
-                font=self.label_font,
-                relief="flat",
-                padx=10,
-                pady=4,
-            )
-            btn.pack(side="left", padx=5, ipadx=6)
+        ttk.Button(btn_frame, text="Create", style="Green.TButton", command=self.save_to_db).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Clear Inputs", style="Green.TButton", command=self.clear_inputs).pack(side="left", padx=5)
 
-        self.msg_label = ttk.Label(self.input_frame, text="", font=self.small_font)
+        tk.Label(self.input_frame, text="Records:", font=self.label_font, bg=bg).pack(anchor="w", pady=(10, 5))
+        self.record_list = tk.Listbox(self.input_frame, height=12)
+        self.record_list.pack(fill="both", expand=True)
+        self.record_list.bind("<<ListboxSelect>>", self.on_select_record)
+
+        action_frame = tk.Frame(self.input_frame, bg=bg)
+        action_frame.pack(fill="x", pady=10)
+
+        ttk.Button(action_frame, text="Refresh Records", style="Green.TButton", command=self.load_list).pack(side="left", padx=4)
+        ttk.Button(action_frame, text="Edit Selected", style="Green.TButton", command=self.update_record).pack(side="left", padx=4)
+        ttk.Button(action_frame, text="Delete Selected", style="Green.TButton", command=self.delete_record).pack(side="left", padx=4)
+
+        self.msg_label = tk.Label(self.input_frame, text="", bg=bg)
         self.msg_label.pack(anchor="w", pady=(8, 0))
 
-    def _build_display_panel(self):
-        # Header
-        top = ttk.Frame(self.display_frame)
-        top.pack(fill="x", pady=(0, 10))
-        title = ttk.Label(top, text="Stats", font=self.title_font)
-        title.pack(side="left")
-        self.timestamp_label = ttk.Label(top, text="(no data yet)", font=self.small_font)
-        self.timestamp_label.pack(side="right")
+    def _build_display_panel(self, bg):
+        tk.Label(self.display_frame, text="Stats", font=self.title_font, bg=bg).pack(anchor="w")
+        self.timestamp_label = tk.Label(self.display_frame, text="(no data yet)", bg=bg)
+        self.timestamp_label.pack(anchor="e", pady=(0, 20))
 
-        # Stats grid
-        grid = ttk.Frame(self.display_frame)
-        grid.pack(fill="both", expand=True, pady=(10, 0))
-        grid.columnconfigure(0, weight=1)
-        grid.columnconfigure(1, weight=1)
-        for i in range(3):
-            grid.rowconfigure(i, weight=1)
+        grid = tk.Frame(self.display_frame, bg=bg)
+        grid.pack(fill="both", expand=True)
 
         self.tiles = {}
-        tile_info = [
+        stats = [
             ("score", "Score"),
             ("most_consecutive_flips", "Most Consecutive Flips"),
             ("objects_destroyed", "Objects Destroyed"),
@@ -169,101 +144,88 @@ class StatsDashboard(tk.Tk):
             ("trophies_collected", "Trophies Collected"),
         ]
 
-        r, c = 0, 0
-        for key, title_text in tile_info:
-            tile = tk.Frame(
-                grid,
-                bg="#32CD32",  # Green
-                bd=0,
-                relief="flat",
-                highlightbackground="#228B22",
-                highlightthickness=1,
-            )
-            tile.grid(row=r, column=c, sticky="nsew", padx=10, pady=10)
-            lbl = tk.Label(tile, text=title_text, bg="#32CD32", fg="white", font=self.label_font)
-            lbl.pack(anchor="w", pady=(4, 0), padx=8)
-            val = tk.Label(tile, text="—", bg="#32CD32", fg="white", font=self.value_font)
-            val.pack(anchor="w", padx=8, pady=(6, 4))
-            self.tiles[key] = val
+        # Stat tiles
+        for r, (key, text) in enumerate(stats):
+            frame = tk.Frame(grid, bg="#28a745", bd=0, relief="flat")
+            frame.grid(row=r, column=0, sticky="ew", pady=3, ipadx=6, ipady=6)
+            grid.columnconfigure(0, weight=1)
 
-            c += 1
-            if c > 1:
-                c = 0
-                r += 1
+            tk.Label(frame, text=text, font=self.label_font, bg="#28a745", fg="white").pack(anchor="w")
+            lbl = tk.Label(frame, text="—", font=self.value_font, bg="#28a745", fg="white")
+            lbl.pack(anchor="w")
+            self.tiles[key] = lbl
 
-    # --- Actions ---
+    # CRUD logic
     def clear_inputs(self):
         for var, _ in self.entries.values():
             var.set("")
         self.msg_label.config(text="Inputs cleared.")
 
-    def save_to_db(self):
-        data = {}
-        for key, (var, _type) in self.entries.items():
-            txt = var.get().strip()
-            if txt == "":
-                val = 0.0 if _type == float else 0
-            else:
-                try:
-                    val = _type(txt)
-                except ValueError:
-                    self.msg_label.config(text=f"Error: '{txt}' is not valid for {key}.")
-                    return
-            data[key] = val
+    def load_list(self):
+        self.record_list.delete(0, tk.END)
+        for rec in self.session.query(Stats).order_by(Stats.timestamp.desc()).all():
+            self.record_list.insert(tk.END, f"ID {rec.id} | {rec.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
 
-        try:
-            stat = Stats(
-                score=int(data.get("score", 0)),
-                most_consecutive_flips=int(data.get("most_consecutive_flips", 0)),
-                objects_destroyed=int(data.get("objects_destroyed", 0)),
-                air_time=float(data.get("air_time", 0.0)),
-                tasks_completed=int(data.get("tasks_completed", 0)),
-                trophies_collected=int(data.get("trophies_collected", 0)),
-                timestamp=datetime.utcnow(),
-            )
-            self.session.add(stat)
+    def on_select_record(self, e=None):
+        sel = self.record_list.curselection()
+        if not sel:
+            return
+        rec_id = int(self.record_list.get(sel[0]).split()[1])
+        record = self.session.get(Stats, rec_id)
+        self.current_id = rec_id
+        for key, (var, _) in self.entries.items():
+            var.set(str(getattr(record, key)))
+
+    def save_to_db(self):
+        data = {k: cast(var.get() or 0) for k, (var, cast) in self.entries.items()}
+        new = Stats(timestamp=datetime.utcnow(), **data)
+        self.session.add(new)
+        self.session.commit()
+        self.msg_label.config(text="Created new record.")
+        self.load_list()
+        self.load_latest()
+
+    def update_record(self):
+        if not hasattr(self, "current_id"):
+            self.msg_label.config(text="Select a record first.")
+            return
+        record = self.session.get(Stats, self.current_id)
+        for key, (var, cast) in self.entries.items():
+            setattr(record, key, cast(var.get() or 0))
+        self.session.commit()
+        self.msg_label.config(text=f"Updated record ID {self.current_id}.")
+        self.load_list()
+        self.load_latest()
+
+    def delete_record(self):
+        sel = self.record_list.curselection()
+        if not sel:
+            self.msg_label.config(text="Nothing selected.")
+            return
+        rec_id = int(self.record_list.get(sel[0]).split()[1])
+        if messagebox.askyesno("Confirm Delete", f"Delete record ID {rec_id}?"):
+            self.session.delete(self.session.get(Stats, rec_id))
             self.session.commit()
-            self.msg_label.config(text=f"Saved at {stat.timestamp.isoformat()} UTC")
+            self.msg_label.config(text=f"Deleted record ID {rec_id}.")
+            self.load_list()
             self.load_latest()
-        except Exception as e:
-            self.session.rollback()
-            messagebox.showerror("DB Error", str(e))
 
     def load_latest(self):
-        try:
-            latest = self.session.query(Stats).order_by(Stats.timestamp.desc()).first()
-            if not latest:
-                self._display_empty()
-                self.msg_label.config(text="No records found.")
-                return
-            self._update_tiles(latest.as_dict())
-            self.timestamp_label.config(text=latest.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC"))
-            self.msg_label.config(text=f"Loaded Record ID = {latest.id}")
-        except Exception as e:
-            messagebox.showerror("DB Error", str(e))
+        latest = self.session.query(Stats).order_by(Stats.timestamp.desc()).first()
+        if not latest:
+            for lbl in self.tiles.values():
+                lbl.config(text="—")
+            self.timestamp_label.config(text="(no data yet)")
+            return
 
-    def _display_empty(self):
-        for lbl in self.tiles.values():
-            lbl.config(text="—")
-        self.timestamp_label.config(text="(no data yet)")
-
-    def _update_tiles(self, data: dict):
-        self.tiles["score"].config(text=f"{int(data.get('score', 0))}")
-        self.tiles["most_consecutive_flips"].config(text=f"{int(data.get('most_consecutive_flips', 0))}")
-        self.tiles["objects_destroyed"].config(text=f"{int(data.get('objects_destroyed', 0))}")
-        self.tiles["air_time"].config(text=f"{float(data.get('air_time', 0.0)):.1f}s")
-        self.tiles["tasks_completed"].config(text=f"{int(data.get('tasks_completed', 0))}")
-        self.tiles["trophies_collected"].config(text=f"{int(data.get('trophies_collected', 0))}")
-
-    # --- Fullscreen controls ---
-    def toggle_fullscreen(self, event=None):
-        self.fullscreen = not self.fullscreen
-        self.attributes("-fullscreen", self.fullscreen)
-
-    def exit_fullscreen(self, event=None):
-        if self.fullscreen:
-            self.fullscreen = False
-            self.attributes("-fullscreen", False)
+        d = latest.as_dict()
+        self.tiles["score"].config(text=d["score"])
+        self.tiles["most_consecutive_flips"].config(text=d["most_consecutive_flips"])
+        self.tiles["objects_destroyed"].config(text=d["objects_destroyed"])
+        self.tiles["air_time"].config(text=f"{d['air_time']:.1f}s")
+        self.tiles["tasks_completed"].config(text=d["tasks_completed"])
+        self.tiles["trophies_collected"].config(text=d["trophies_collected"])
+        self.timestamp_label.config(text=latest.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC"))
 
 
 if __name__ == "__main__":
